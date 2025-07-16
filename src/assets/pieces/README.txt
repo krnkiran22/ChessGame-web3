@@ -1,0 +1,1 @@
+This folder will contain SVG images for all chess pieces (king, queen, rook, bishop, knight, pawn) for both white and black. These will be used for the custom chessboard visuals. 
