@@ -35,11 +35,10 @@ function findKing(board, color) {
 }
 
 function isAttacked(board, x, y, attackerColor) {
-  // For each enemy piece, see if it can move to (x, y)
   for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
     const piece = board[i][j];
     if ((attackerColor === "w" && isWhite(piece)) || (attackerColor === "b" && isBlack(piece))) {
-      const moves = getLegalMoves(board, [i, j], attackerColor, {}, false); // ignore check for attackers
+      const moves = getLegalMoves(board, [i, j], attackerColor, {}, false);
       if (moves.some(([tx, ty]) => tx === x && ty === y)) return true;
     }
   }
@@ -47,7 +46,6 @@ function isAttacked(board, x, y, attackerColor) {
 }
 
 function getLegalMoves(board, from, turn, castleRights, filterCheck = true) {
-  // Basic moves + castling
   const [fx, fy] = from;
   const piece = board[fx][fy];
   if (!piece) return [];
@@ -111,12 +109,10 @@ function getLegalMoves(board, from, turn, castleRights, filterCheck = true) {
     for (let [dx, dy] of Object.values(directions)) {
       add(fx + dx, fy + dy);
     }
-    // Castling
     if (castleRights) {
       const color = isWhite(piece) ? "w" : "b";
       const homeRank = color === "w" ? 7 : 0;
       if (fx === homeRank && fy === 4) {
-        // Kingside
         if (castleRights[color + "K"] &&
           !board[homeRank][5] && !board[homeRank][6] &&
           !isAttacked(board, homeRank, 4, color === "w" ? "b" : "w") &&
@@ -125,7 +121,6 @@ function getLegalMoves(board, from, turn, castleRights, filterCheck = true) {
           board[homeRank][7] === (color + "R")) {
           moves.push([homeRank, 6, "castleK"]);
         }
-        // Queenside
         if (castleRights[color + "Q"] &&
           !board[homeRank][3] && !board[homeRank][2] && !board[homeRank][1] &&
           !isAttacked(board, homeRank, 4, color === "w" ? "b" : "w") &&
@@ -137,11 +132,9 @@ function getLegalMoves(board, from, turn, castleRights, filterCheck = true) {
       }
     }
   }
-  // Remove moves that leave king in check
   if (filterCheck) {
     return moves.filter(([tx, ty, special]) => {
       const newBoard = cloneBoard(board);
-      // Special: castling
       if (special === "castleK") {
         newBoard[fx][fy] = null;
         newBoard[fx][6] = piece;
@@ -164,7 +157,6 @@ function getLegalMoves(board, from, turn, castleRights, filterCheck = true) {
   return moves;
 }
 
-// LGT contract details
 const LGT_CONTRACT_ADDRESS = "0x8f1afe3e227566cfb39eb04148fa6dc302ffd7e5";
 const LGT_ABI = [
   {"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},
@@ -216,7 +208,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
   const ablyRef = useRef(null);
   const channelRef = useRef(null);
 
-  // MetaMask connect handler
   async function connectWallet() {
     if (window.ethereum) {
       try {
@@ -230,7 +221,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
     }
   }
 
-  // Reward winner with LGT tokens (only works if owner wallet is connected)
   async function rewardWinnerLGT() {
     if (!window.ethereum) {
       alert("MetaMask is not installed");
@@ -250,7 +240,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
     }
   }
 
-  // Rematch handler: send request via Ably
   function handleRematch() {
     if (typeof points === 'number' && typeof setPoints === 'function' && typeof showToast === 'function') {
       if (points < 100) {
@@ -264,7 +253,7 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
       channelRef.current.publish("rematch-request", { from: walletAddress });
     }
   }
-  // Accept rematch handler: send accept via Ably
+
   function handleAcceptRematch() {
     setRematchAccepted(true);
     if (channelRef.current) {
@@ -272,7 +261,7 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
     }
     doRematch();
   }
-  // Actually reset the board and state
+
   function doRematch() {
     setBoard(initialBoard.map(row => [...row]));
     setTurn("w");
@@ -288,10 +277,8 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
     setRematchAccepted(false);
   }
 
-  // Setup Ably for multiplayer
   useEffect(() => {
     if (mode === "local") return;
-    // Always create a new Ably client and channel on roomCode/mode change
     const ABLY_API_KEY = "APLiMQ.ZqdWTQ:iOBXJhzwuW75r7GoRCyqBWjnykv0CM3I-7PtJQ61aTU";
     const uniqueClientId = (mode === "create" ? "w" : "b") + '-' + Math.random().toString(36).slice(2, 8);
     const ably = new Ably.Realtime({ key: ABLY_API_KEY, clientId: uniqueClientId });
@@ -301,7 +288,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
 
     setPlayerColor(mode === "create" ? "w" : "b");
 
-    // Handlers
     const moveHandler = msg => {
       console.log("[Ably] Move received", msg.data);
       const { move, newBoard, nextTurn, newCastleRights } = msg.data;
@@ -313,7 +299,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
       setTimeout(() => updateStatus(newBoard, nextTurn, newCastleRights), 0);
     };
 
-    // Always check presence count on any presence event
     const updatePresence = () => {
       channel.presence.get().then(members => {
         console.log("[Ably] Presence members:", members.map(m => m.clientId));
@@ -327,7 +312,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
     channel.presence.enter();
     updatePresence();
 
-    // Add rematch event handlers
     const rematchRequestHandler = msg => {
       if (msg.data && msg.data.from !== walletAddress) {
         setRematchReceived(true);
@@ -341,7 +325,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
       channelRef.current.subscribe("rematch-accept", rematchAcceptHandler);
     }
 
-    // Cleanup: only unsubscribe handlers, do not close connection
     return () => {
       channel.unsubscribe("move", moveHandler);
       channel.presence.unsubscribe("enter", updatePresence);
@@ -358,7 +341,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
   function updateStatus(newBoard, nextTurn, newCastleRights) {
     const kingPos = findKing(newBoard, nextTurn);
     const inCheck = kingPos && isAttacked(newBoard, kingPos[0], kingPos[1], nextTurn === "w" ? "b" : "w");
-    // Any legal moves?
     let hasMoves = false;
     for (let x = 0; x < 8; x++) for (let y = 0; y < 8; y++) {
       const piece = newBoard[x][y];
@@ -370,7 +352,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
       }
     }
     if (inCheck && !hasMoves) {
-      // FIX: Winner is the opposite of nextTurn
       setStatus(`Checkmate! ${(nextTurn === "w" ? "Black" : "White")} wins!`);
       setGameOver(true);
     } else if (!inCheck && !hasMoves) {
@@ -387,7 +368,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
 
   function handleSquareClick(x, y) {
     if (gameOver) return;
-    // Multiplayer: only allow correct color to move
     if (mode !== "local" && turn !== playerColor) return;
     const piece = board[x][y];
     if (selected) {
@@ -396,13 +376,11 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
         const [fx, fy] = selected;
         const newBoard = cloneBoard(board);
         let newCastleRights = { ...castleRights };
-        // Special: castling
         if (move[2] === "castleK") {
           newBoard[fx][fy] = null;
           newBoard[fx][6] = board[fx][fy];
           newBoard[fx][7] = null;
           newBoard[fx][5] = turn + "R";
-          // King and rook have moved
           newCastleRights[turn + "K"] = false;
           newCastleRights[turn + "Q"] = false;
         } else if (move[2] === "castleQ") {
@@ -415,7 +393,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
         } else {
           newBoard[x][y] = board[fx][fy];
           newBoard[fx][fy] = null;
-          // Update castling rights if king or rook moves
           if (board[fx][fy][1] === "K") {
             newCastleRights[turn + "K"] = false;
             newCastleRights[turn + "Q"] = false;
@@ -426,7 +403,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
             if (turn === "b" && fx === 0 && fy === 7) newCastleRights.bK = false;
           }
         }
-        // After move, sync via Ably if multiplayer
         if (mode !== "local" && channelRef.current) {
           channelRef.current.publish("move", {
             move: { from: [fx, fy], to: [x, y], special: move[2] },
@@ -454,13 +430,11 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
     }
   }
 
-  // Determine if the local user is the winner
   const isLocalWinner = gameOver && status.includes("wins") && (
     (status.includes("White") && playerColor === "w") ||
     (status.includes("Black") && playerColor === "b")
   );
 
-  // UI: show player color, wallet, and waiting status
   return (
     <div style={{
       display: "flex",
@@ -478,7 +452,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
           {opponentConnected ? "Opponent connected!" : "Waiting for opponent to join..."}
         </div>
       )}
-      {/* Wallet connect UI */}
       {!walletAddress ? (
         <button
           onClick={connectWallet}
@@ -493,7 +466,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
           Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
         </div>
       )}
-      {/* Block chessboard until wallet connected */}
       {walletAddress ? (
         <div
           style={{
@@ -505,15 +477,17 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
             background: "#b58863"
           }}
         >
-          {board.map((row, x) =>
-            row.map((piece, y) => {
-              const isSelected = selected && selected[0] === x && selected[1] === y;
-              const isLegal = legalMoves.some(([tx, ty]) => tx === x && ty === y);
-              const isLight = (x + y) % 2 === 1;
+          {(playerColor === "w" ? board : [...board].reverse()).map((row, x) =>
+            (playerColor === "w" ? row : [...row].reverse()).map((piece, y) => {
+              const actualX = playerColor === "w" ? x : 7 - x;
+              const actualY = playerColor === "w" ? y : 7 - y;
+              const isSelected = selected && selected[0] === actualX && selected[1] === actualY;
+              const isLegal = legalMoves.some(([tx, ty]) => tx === actualX && ty === actualY);
+              const isLight = (actualX + actualY) % 2 === 1;
               return (
                 <div
-                  key={x + "-" + y}
-                  onClick={() => handleSquareClick(x, y)}
+                  key={`${actualX}-${actualY}`}
+                  onClick={() => handleSquareClick(actualX, actualY)}
                   style={{
                     width: 70,
                     height: 70,
@@ -544,7 +518,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
           Please connect your wallet to start the game.
         </div>
       )}
-      {/* Modal popup for game over or rematch messages */}
       {(gameOver || rematchReceived) && (
         <div style={{
           position: "fixed",
@@ -570,7 +543,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
             minWidth: 240,
             maxWidth: 340
           }}>
-            {/* Show concise message */}
             {rematchReceived ? (
               <>
                 Opponent wants a rematch!<br />
@@ -586,7 +558,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
             ) : (
               <>
                 {status || (turn === "w" ? "White" : "Black") + "'s turn."}
-                {/* Show claim reward button if local user is winner and not yet claimed */}
                 {isLocalWinner && !rewardClaimed && (
                   <button
                     onClick={rewardWinnerLGT}
@@ -623,7 +594,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
                     )}
                   </div>
                 )}
-                {/* Rematch button for the loser, disabled if already requested */}
                 {gameOver && !isLocalWinner && status.includes("wins") && !rematchRequested && (
                   <button
                     onClick={handleRematch}
@@ -639,7 +609,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
                     Waiting for opponent to accept rematch...
                   </div>
                 )}
-                {/* Back to Home button */}
                 {gameOver && (
                   <button
                     onClick={() => {
@@ -666,7 +635,6 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
         {gameOver && status.includes("wins") && (status.includes("White") ? "White user wins!" : "Black user wins!")}<br />
         (Castling, check, and checkmate supported. No en passant or promotion yet)
       </p>
-      {/* Remove claim reward button from below the board */}
     </div>
   );
-} 
+}
