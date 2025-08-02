@@ -197,7 +197,7 @@ const LGT_ABI = [
   {"inputs":[],"name":"WIN_REWARD","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}
 ];
 
-export default function ChessGame({ roomCode, mode }) {
+export default function ChessGame({ roomCode, mode, points, setPoints, showToast, onBackToHome }) {
   const [board, setBoard] = useState(initialBoard.map(row => [...row]));
   const [turn, setTurn] = useState("w");
   const [selected, setSelected] = useState(null);
@@ -252,6 +252,13 @@ export default function ChessGame({ roomCode, mode }) {
 
   // Rematch handler: send request via Ably
   function handleRematch() {
+    if (typeof points === 'number' && typeof setPoints === 'function' && typeof showToast === 'function') {
+      if (points < 100) {
+        showToast("You don’t have enough money");
+        return;
+      }
+      setPoints(points - 100);
+    }
     setRematchRequested(true);
     if (channelRef.current) {
       channelRef.current.publish("rematch-request", { from: walletAddress });
@@ -631,6 +638,23 @@ export default function ChessGame({ roomCode, mode }) {
                   <div style={{ color: '#f59e42', margin: '24px auto 0', fontWeight: 'bold', fontSize: 16 }}>
                     Waiting for opponent to accept rematch...
                   </div>
+                )}
+                {/* Back to Home button */}
+                {gameOver && (
+                  <button
+                    onClick={() => {
+                      if (typeof onBackToHome === 'function') {
+                        onBackToHome();
+                      } else {
+                        window.location.reload();
+                      }
+                    }}
+                    style={{
+                      background: '#6366f1', color: '#fff', fontWeight: 'bold', fontSize: 18, padding: '10px 24px', borderRadius: 8, margin: '24px auto 0', boxShadow: '0 2px 8px #000a', cursor: 'pointer', border: 'none', display: 'block'
+                    }}
+                  >
+                    Back to Home
+                  </button>
                 )}
               </>
             )}
