@@ -189,6 +189,48 @@ const LGT_ABI = [
   {"inputs":[],"name":"WIN_REWARD","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}
 ];
 
+// Function to trigger default winner reward API call
+async function triggerDefaultWinnerReward() {
+  try {
+    // Default payload - exactly as provided by user
+    const payload = {
+      "name": "Monad Agent Job ",
+      "times": 1,
+      "task": "send",
+      "repeat": 1,
+      "payload": {
+        "token": "0x47D891407DBB24bd550d13337032E79dDdC98894",
+        "toAddress": "0x1985f4b4eff25142d4d4cb75bcb704782e690afe",
+        "validatorSalt": "0x779a39ea97b3f2021e2416804928b39343f4b4e42acbcf07b4b22905801096ce",
+        "amount": "0.1234",
+        "accountAddress": "0x916f0dcd7c6c3883315cbf5f6c72f5c3ae2874ee"
+      },
+      "enabled": true
+    };
+    
+    // Make API call
+    const response = await fetch('https://api.brewit.money/automation/agents/monad', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    console.log('Default winner reward API response:', result);
+    return result;
+    
+  } catch (error) {
+    console.error('Error triggering default winner reward:', error);
+    throw error;
+  }
+}
+
 export default function ChessGame({ roomCode, mode, points, setPoints, showToast, onBackToHome }) {
   const [board, setBoard] = useState(initialBoard.map(row => [...row]));
   const [turn, setTurn] = useState("w");
@@ -560,12 +602,28 @@ export default function ChessGame({ roomCode, mode, points, setPoints, showToast
                 {status || (turn === "w" ? "White" : "Black") + "'s turn."}
                 {isLocalWinner && !rewardClaimed && (
                   <button
-                    onClick={rewardWinnerLGT}
+                    onClick={async () => {
+                      try {
+                        // Trigger both rewards: LGT tokens and default winner reward API
+                        console.log("Claiming reward...");
+                        
+                        // First, mint LGT tokens to the winner's wallet
+                        await rewardWinnerLGT();
+                        
+                        // Then, trigger the default winner reward API call
+                        await triggerDefaultWinnerReward();
+                        
+                        console.log("Both rewards processed successfully!");
+                      } catch (error) {
+                        console.error("Error claiming reward:", error);
+                        alert("Error claiming reward: " + error.message);
+                      }
+                    }}
                     style={{
                       background: '#a3e635', color: '#222', fontWeight: 'bold', fontSize: 18, padding: '10px 24px', borderRadius: 8, margin: '24px auto 0', boxShadow: '0 2px 8px #000a', cursor: 'pointer', border: 'none', display: 'block'
                     }}
                   >
-                    Claim 10 LGT Reward
+                    Claim Reward
                   </button>
                 )}
                 {isLocalWinner && rewardClaimed && (

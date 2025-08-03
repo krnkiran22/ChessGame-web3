@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { Crown, Shield, Castle, Gem, Swords, Circle, Coins } from 'lucide-react';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
 // Remove: import Chess3DBackground from './Chess3DBackground';
 
 // Add LGT to MetaMask handler
@@ -24,6 +26,81 @@ const addLGTtoMetaMask = async () => {
     }
   } else {
     alert('MetaMask is not installed.');
+  }
+};
+
+// Wallet address mapping - hardcoded local mapping
+// Structure: Multiple wallet addresses can map to the same account+salt pair
+const WALLET_MAPPINGS = {
+  // Wallet addresses that map to Account 1
+  '0xC95380dc0277Ac927dB290234ff66880C4cdda8c': {
+    accountAddress: '0x1985f4b4eff25142d4d4cb75bcb704782e690afe',
+    salt: '0x30800e26230b717f37df7bf9f716cee36abab08f23b490f2d5b2c19ea1308544',
+    name: 'Account 1 - Wallet 1'
+  },
+  // Wallet addresses that map to Account 2  
+  '0xBD361c9aF5b7B036ADe01399786F7134DA784fD8': {
+    accountAddress: '0x916f0dcd7c6c3883315cbf5f6c72f5c3ae2874ee',
+    salt: '0x779a39ea97b3f2021e2416804928b39343f4b4e42acbcf07b4b22905801096ce',
+    name: 'Account 2 - Wallet 1'
+  }
+  // Add more wallet addresses here that can map to either account
+  // Example: Another wallet for Account 1:
+  // '0xAnotherWalletAddress': {
+  //   accountAddress: '0xda5b598f2cfd845d66a62c0d7e9071558c384fde',
+  //   salt: '0xbc71d607654b1d88d3019922da8f2a2e65663e5d55e55c6ae91d492c99167fe2',
+  //   name: 'Account 1 - Wallet 2'
+  // }
+};
+
+// Function to get wallet mapping info
+const getWalletMapping = (address) => {
+  const normalizedAddress = address?.toLowerCase();
+  const mapping = Object.keys(WALLET_MAPPINGS).find(
+    key => key.toLowerCase() === normalizedAddress
+  );
+  return mapping ? WALLET_MAPPINGS[mapping] : null;
+};
+
+// Simple function to trigger default winner reward API call when game ends
+const triggerDefaultWinnerReward = async () => {
+  try {
+    // Default payload - exactly as provided by user
+    const payload = {
+      "name": "Monad Agent Job ",
+      "times": 1,
+      "task": "send",
+      "repeat": 1,
+      "payload": {
+        "token": "0x47D891407DBB24bd550d13337032E79dDdC98894",
+        "toAddress": "0x1985f4b4eff25142d4d4cb75bcb704782e690afe",
+        "validatorSalt": "0x779a39ea97b3f2021e2416804928b39343f4b4e42acbcf07b4b22905801096ce",
+        "amount": "0.1234",
+        "accountAddress": "0x916f0dcd7c6c3883315cbf5f6c72f5c3ae2874ee"
+      },
+      "enabled": true
+    };
+    
+    // Make API call
+    const response = await fetch('https://api.brewit.money/automation/agents/monad', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    console.log('Default winner reward API response:', result);
+    return result;
+    
+  } catch (error) {
+    console.error('Error triggering default winner reward:', error);
+    throw error;
   }
 };
 
@@ -88,6 +165,55 @@ export default function Home({ onStartGame, onCreateRoom, onJoinRoom }) {
   const [selectedLevel, setSelectedLevel] = useState("");
   const [points, setPoints] = useState(500); // In-game wallet points
   const [toast, setToast] = useState("");
+  const [accountAddress, setAccountAddress] = useState("");
+  const [walletSalt, setWalletSalt] = useState("");
+  
+  // Use wagmi hooks
+  const { address: walletAddress, isConnected } = useAccount();
+
+  // Function to handle game completion with default winner reward
+  const handleGameComplete = async () => {
+    try {
+      // Always trigger the default winner reward API call when game ends
+      const result = await triggerDefaultWinnerReward();
+      
+      // Update local game state
+      const wins = getWins();
+      setWins(wins + 1);
+      
+      // Show success message
+      setToast("Game completed! Winner reward processed.");
+      setTimeout(() => setToast(""), 3000);
+      
+      return result;
+    } catch (error) {
+      console.error('Error processing game completion:', error);
+      setToast(`Error processing reward: ${error.message}`);
+      setTimeout(() => setToast(""), 4000);
+      throw error;
+    }
+  };
+
+  // Update wallet mapping when address changes
+  useEffect(() => {
+    if (walletAddress && isConnected) {
+      const walletInfo = getWalletMapping(walletAddress);
+      if (walletInfo) {
+        setAccountAddress(walletInfo.accountAddress);
+        setWalletSalt(walletInfo.salt);
+        setToast(`Wallet connected! Mapped to: ${walletInfo.name}`);
+        setTimeout(() => setToast(""), 3000);
+      } else {
+        setAccountAddress("");
+        setWalletSalt("");
+        setToast("Wallet connected! No mapping found.");
+        setTimeout(() => setToast(""), 3000);
+      }
+    } else {
+      setAccountAddress("");
+      setWalletSalt("");
+    }
+  }, [walletAddress, isConnected]);
 
   const knightCursor =
     "url('data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 448 512\'><path d=\'M96 48L82.7 61.3C70.7 73.3 64 89.5 64 106.5l0 132.4c0 10.7 5.3 20.7 14.2 26.6l10.6 7c14.3 9.6 32.7 10.7 48.1 3l3.2-1.6c2.6-1.3 5-2.8 7.3-4.5l49.4-37c6.6-5 15.7-5 22.3 0c10.2 7.7 9.9 23.1-.7 30.3L90.4 350C73.9 361.3 64 380 64 400l320 0 28.9-159c2.1-11.3 3.1-22.8 3.1-34.3l0-14.7C416 86 330 0 224 0L83.8 0C72.9 0 64 8.9 64 19.8c0 7.5 4.2 14.3 10.9 17.7L96 48zm24 68a20 20 0 1 1 40 0 20 20 0 1 1 -40 0zM22.6 473.4c-4.2 4.2-6.6 10-6.6 16C16 501.9 26.1 512 38.6 512l370.7 0c12.5 0 22.6-10.1 22.6-22.6c0-6-2.4-11.8-6.6-16L384 432 64 432 22.6 473.4z' fill=\'%23fff\'/></svg>') 16 16, auto";
@@ -233,7 +359,7 @@ export default function Home({ onStartGame, onCreateRoom, onJoinRoom }) {
       </div>
       {/* Wallet UI */}
       <div className="flex items-center gap-3 bg-gray-800 rounded-xl px-6 py-3 shadow-lg mt-8 mb-4 self-start">
-        <span className="inline-block w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center text-black font-bold text-lg mr-2">
+        <span className="w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center text-black font-bold text-lg mr-2">
           <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path fill="#000" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
         </span>
         <span className="text-yellow-300 font-bold text-xl">{points}</span>
@@ -246,6 +372,116 @@ export default function Home({ onStartGame, onCreateRoom, onJoinRoom }) {
         </div>
       )}
       <h1 className="text-5xl font-bold text-white mb-10 drop-shadow-lg">Chess Game</h1>
+      
+      {/* RainbowKit Connect Button */}
+      <div className="mb-8">
+        <ConnectButton.Custom>
+          {({
+            account,
+            chain,
+            openAccountModal,
+            openChainModal,
+            openConnectModal,
+            authenticationStatus,
+            mounted,
+          }) => {
+            // Note: If your app doesn't use authentication, you
+            // can remove all 'authenticationStatus' checks
+            const ready = mounted && authenticationStatus !== 'loading';
+            const connected =
+              ready &&
+              account &&
+              chain &&
+              (!authenticationStatus ||
+                authenticationStatus === 'authenticated');
+
+            return (
+              <div
+                {...(!ready && {
+                  'aria-hidden': true,
+                  'style': {
+                    opacity: 0,
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  },
+                })}
+              >
+                {(() => {
+                  if (!connected) {
+                    return (
+                      <button 
+                        onClick={openConnectModal} 
+                        type="button"
+                        className="flex items-center justify-center gap-3 bg-gradient-to-r from-purple-500 via-purple-400 to-purple-600 hover:from-purple-600 hover:to-purple-400 text-white font-extrabold py-4 px-8 rounded-2xl text-xl shadow-2xl transition-all duration-200 border-4 border-purple-200 hover:scale-105 active:scale-95"
+                      >
+                        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm-1.5 17.25v1.5h3v-1.5h-3zm0-3v1.5h3v-1.5h-3zm0-3v1.5h3v-1.5h-3zm0-3v1.5h3v-1.5h-3z"/>
+                        </svg>
+                        Connect Wallet
+                      </button>
+                    );
+                  }
+
+                  if (chain.unsupported) {
+                    return (
+                      <button 
+                        onClick={openChainModal} 
+                        type="button"
+                        className="flex items-center justify-center gap-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-extrabold py-4 px-8 rounded-2xl text-xl shadow-2xl transition-all duration-200 border-4 border-red-200 hover:scale-105 active:scale-95"
+                      >
+                        Wrong network
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-3 px-6 rounded-2xl text-lg shadow-2xl border-4 border-green-200">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                        </svg>
+                        <div className="flex flex-col">
+                          <span>Wallet: {account.displayName}</span>
+                          {accountAddress && (
+                            <span className="text-xs text-green-200">
+                              Account: {accountAddress.slice(0, 6)}...{accountAddress.slice(-4)}
+                            </span>
+                          )}
+                          {walletSalt && (
+                            <span className="text-xs text-green-200">
+                              Salt: {walletSalt.slice(0, 10)}...{walletSalt.slice(-8)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={openAccountModal}
+                        className="text-gray-400 hover:text-white text-sm underline transition-colors"
+                      >
+                        Account Details
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          }}
+        </ConnectButton.Custom>
+      </div>
+      
+      {/* Debug Information (only show when connected and mapped) */}
+      {isConnected && accountAddress && walletSalt && (
+        <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-600 max-w-lg">
+          <h3 className="text-lg font-bold text-yellow-400 mb-2">Wallet Mapping Info</h3>
+          <div className="text-sm text-gray-300 space-y-1">
+            <div><span className="text-gray-400">Connected Wallet:</span> {walletAddress}</div>
+            <div><span className="text-gray-400">→ Maps to Account:</span> {accountAddress}</div>
+            <div><span className="text-gray-400">→ Account Salt:</span> {walletSalt}</div>
+            <div className="text-green-400 text-xs mt-2">✓ Wallet successfully mapped to account+salt pair!</div>
+          </div>
+        </div>
+      )}
+      
       <div className="flex flex-col gap-6 w-80">
         <button
           className="flex items-center justify-center gap-3 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-black font-extrabold py-4 px-8 rounded-2xl text-xl shadow-2xl transition-all duration-200 mb-3 border-4 border-yellow-200 hover:scale-105 active:scale-95"
@@ -281,6 +517,27 @@ export default function Home({ onStartGame, onCreateRoom, onJoinRoom }) {
           <Gem className="inline-block text-yellow-200 drop-shadow-md" size={22} />
           Add LGT Token to MetaMask
         </button>
+        
+        {/* Test Default Winner Reward API button - only show when connected */}
+        {isConnected && accountAddress && (
+          <button
+            className="flex items-center justify-center gap-3 bg-gradient-to-r from-orange-500 via-orange-400 to-orange-600 hover:from-orange-600 hover:to-orange-400 text-white font-extrabold py-3 px-8 rounded-2xl text-lg shadow-2xl transition-all duration-200 border-4 border-orange-200 hover:scale-105 active:scale-95 mt-2"
+            onClick={async () => {
+              try {
+                setToast("Testing default winner reward API...");
+                await triggerDefaultWinnerReward();
+                setToast("Default winner reward API test successful!");
+                setTimeout(() => setToast(""), 3000);
+              } catch (error) {
+                setToast(`API test failed: ${error.message}`);
+                setTimeout(() => setToast(""), 4000);
+              }
+            }}
+          >
+            <Coins className="inline-block text-yellow-200 drop-shadow-md" size={22} />
+            Test Default Winner Reward API
+          </button>
+        )}
       </div>
       {/* Level selection modal */}
       {showLevelModal && (
@@ -345,13 +602,15 @@ export default function Home({ onStartGame, onCreateRoom, onJoinRoom }) {
           </div>
         </div>
       )}
-      {/* Render ChessGame with points props if needed */}
+      {/* Render ChessGame with points props and game completion handler */}
       {mode === "game" && (
         <ChessGame
           roomCode={roomCode}
           mode={mode}
           points={points}
           setPoints={setPoints}
+          onGameComplete={handleGameComplete}
+          currentWalletAddress={walletAddress}
           showToast={msg => {
             setToast(msg);
             setTimeout(() => setToast(""), 2500);
